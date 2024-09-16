@@ -1,0 +1,7 @@
+os
+boto3
+psycopg2
+pandas
+dotenv
+io
+datetime
