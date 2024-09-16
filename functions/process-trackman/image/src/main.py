@@ -5,7 +5,6 @@
 import os
 import boto3
 import psycopg2
-import json
 import pandas as pd
 from dotenv import load_dotenv
 from io import StringIO
