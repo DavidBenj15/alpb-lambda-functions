@@ -23,12 +23,15 @@ def get_csv(event, s3):
     """Use event object's JSON to return a CSV from the S3 bucket."""
     bucket = event['Records'][0]['s3']['bucket']['name']
     key = event['Records'][0]['s3']['object']['key'] # path to CSV file in S3 bucket
+    print("bucket:", bucket)
+    print("key:", key)
     res = s3.get_object(Bucket=bucket, Key=key)
 
 
     string = res['Body'].read().decode('utf-8')
     csv = StringIO(string)
     file_name = key.split('/')[-1]
+    print("Got csv:", file_name)
 
     return csv, file_name
 
@@ -55,11 +58,13 @@ def connect_to_db():
 
 def process_csv(file, file_name, conn, s3):
     """ Read CSV, operate on the data, and insert the data into the database."""
+    print("Processing csv...")
     df = pd.read_csv(file)
     df = df.where(pd.notnull(df), None) # cast empty values to None (instead of Float, for ex.)
     game = get_game_info(file_name, df, conn, s3)
     game_id = determine_game_id(file_name, conn, df, game, s3)
     if not game_id:
+        print("Not inserting game.")
         return # "game_id == None" tells us that we should not insert the given data.
     
     # check if game exists already
@@ -106,7 +111,7 @@ def handle_pitch_data(conn, df, game_id, game_exists):
         'hit_trajectory_xc7', 'hit_trajectory_xc8', 'hit_trajectory_yc0', 'hit_trajectory_yc1', 'hit_trajectory_yc2', 
         'hit_trajectory_yc3', 'hit_trajectory_yc4', 'hit_trajectory_yc5', 'hit_trajectory_yc6', 'hit_trajectory_yc7', 
         'hit_trajectory_yc8', 'hit_trajectory_zc0', 'hit_trajectory_zc1', 'hit_trajectory_zc3', 'hit_trajectory_zc4', 
-        'hit_trajectory_zc5', 'hit_trajectory_zc6', 'pitcher_throws', 'pitcher_team', 'batter_side', 'batter_team', 'pitcher_set', 
+        'hit_trajectory_zc5', 'hit_trajectory_zc6', 'pitcher_throws', 'pitcher_team_code', 'batter_side', 'batter_team_code', 'pitcher_set', 
         'catcher_throws', 'top_or_bottom', 'hit_launch_confidence', 'hit_landing_confidence', 'tagged_pitch_type', 
         'auto_pitch_type', 'pitch_call', 'k_or_bb', 'tagged_hit_type', 'play_result', 'catcher_throw_catch_confidence', 
         'catcher_throw_release_confidence', 'notes', 'catcher_throw_location_confidence', 'pitch_release_confidence', 
@@ -120,6 +125,7 @@ def handle_pitch_data(conn, df, game_id, game_exists):
         pitcher_id = get_or_insert_player(row['Pitcher'], row['PitcherThrows'], row['PitcherTeam'], conn)
         batter_id = get_or_insert_player(row['Batter'], row['BatterSide'], row['BatterTeam'], conn)
         catcher_id = get_or_insert_player(row['Catcher'], row['CatcherThrows'], row['CatcherTeam'], conn)
+        pitcher_set = handle_pitcher_set(row['PitcherSet'])
 
         values = ( 
             row['HitTrajectoryZc2'], pitcher_id, batter_id, game_id, row['Date'], row['Time'], row['PAofInning'], 
@@ -145,7 +151,7 @@ def handle_pitch_data(conn, df, game_id, game_exists):
             row['HitTrajectoryYc0'], row['HitTrajectoryYc1'], row['HitTrajectoryYc2'], row['HitTrajectoryYc3'], row['HitTrajectoryYc4'], 
             row['HitTrajectoryYc5'], row['HitTrajectoryYc6'], row['HitTrajectoryYc7'], row['HitTrajectoryYc8'], row['HitTrajectoryZc0'], 
             row['HitTrajectoryZc1'], row['HitTrajectoryZc3'], row['HitTrajectoryZc4'], row['HitTrajectoryZc5'], 
-            row['HitTrajectoryZc6'], row['PitcherThrows'], row['PitcherTeam'], row['BatterSide'], row['BatterTeam'], row['PitcherSet'], 
+            row['HitTrajectoryZc6'], row['PitcherThrows'], row['PitcherTeam'], row['BatterSide'], row['BatterTeam'], pitcher_set, 
             row['CatcherThrows'], row['Top/Bottom'], row['HitLaunchConfidence'], row['HitLandingConfidence'], 
             row['TaggedPitchType'], row['AutoPitchType'], row['PitchCall'], row['KorBB'], row['TaggedHitType'], row['PlayResult'], 
             row['CatcherThrowCatchConfidence'], row['CatcherThrowReleaseConfidence'], row['Notes'], row['CatcherThrowLocationConfidence'], 
@@ -157,6 +163,11 @@ def handle_pitch_data(conn, df, game_id, game_exists):
         else:
             insert_data_game_dne(columns, values, placeholders_str, conn)
 
+
+def handle_pitcher_set(val):
+    if val == "Undefined":
+        return None
+    return val
 
 def handle_playerpos_data(conn, df, game_id, game_exists):
     cursor = conn.cursor()
@@ -219,7 +230,7 @@ def insert_data_game_exists(columns, values, game_id, pitch_number, conn):
     except Exception as e:
         # rollback the transaction in case of error
         conn.rollback()
-        print(f"Error inserting data: {e}")
+        print(f"Error inserting data when game exists in DB: {e}")
     finally:
         cursor.close()
 
@@ -240,7 +251,7 @@ def insert_data_game_dne(columns, values, placeholders_str, conn):
     except Exception as e:
         # rollback the transaction in case of error
         conn.rollback()
-        print(f"Error inserting data: {e}")
+        print(f"Error inserting data when game previously DNE in DB: {e}")
     finally:
         cursor.close()
 
@@ -256,12 +267,12 @@ def construct_set_clause(columns):
     return set_clause  
 
 
-def get_or_insert_player(player_name, handedness, team_name, conn):
+def get_or_insert_player(player_name, handedness, team_code, conn):
     """ Get the player ID from the player name, handedness, and team. Insert the player if they do not exist. """
     if not player_name:
         return None # do not insert player if name is null
     
-    team_id = get_or_insert_team_id(team_name, conn)
+    team_id = get_or_insert_team_id(team_code, conn)
     try:
         cursor = conn.cursor()
         # check if the player already exists
@@ -291,7 +302,7 @@ def get_or_insert_player(player_name, handedness, team_name, conn):
         return None
 
 
-def get_or_insert_team_id(team_name, conn):
+def get_or_insert_team_id(team_code, conn):
     """
     Get the team ID from the team name. Insert the team if it does not exist in the DB.
     Will not fill in "league" (North or South) or "home_ballpark_id" fields.
@@ -300,9 +311,9 @@ def get_or_insert_team_id(team_name, conn):
     cursor.execute(
         """
         SELECT team_id FROM team
-        WHERE team_name = %s;
+        WHERE team_code = %s;
         """,
-        (team_name,)
+        (team_code,)
     )
     result = cursor.fetchone()
     if result:
@@ -311,10 +322,10 @@ def get_or_insert_team_id(team_name, conn):
         # insert team if it does not exist
         cursor.execute(
             """
-            INSERT INTO team (team_name)
+            INSERT INTO team (team_code)
             VALUES (%s) RETURNING team_id;
             """,
-            (team_name,)
+            (team_code,)
         )
         conn.commit()
         result = cursor.fetchone()
@@ -344,7 +355,7 @@ def determine_game_id(file_name, conn, df, game, s3):
         # get home_team and away_team based on ids.
         team_id_query = """
             SELECT team_id FROM team
-            WHERE team_name = %s;
+            WHERE team_code = %s;
         """
         cursor.execute(team_id_query, (game['home_team'],))
         home_team_id = cursor.fetchone()[0]
@@ -467,7 +478,7 @@ def get_game_info(file_name, df, conn, s3):
 
     team_id_query = """
         SELECT team_id FROM TEAM
-        WHERE team_name = %s;
+        WHERE team_code = %s;
     """
     cursor.execute(team_id_query, (game['home_team'],))
     game['home_team_id'] = cursor.fetchone()[0]

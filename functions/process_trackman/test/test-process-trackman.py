@@ -1,5 +1,5 @@
 # To run test from terminal: py -m pytest the/test/location.py -s
-
+from functions.process_trackman.image.src.main import connect_to_db, get_csv, get_game_info, handler, determine_game_id  
 import sys
 import os
 import pytest
@@ -8,8 +8,8 @@ import pandas as pd
 import boto3
 from io import StringIO
 # Adjust Python path to enable absolute imports:
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from functions.process_trackman.test.image.src.main import connect_to_db, get_csv, get_game_info, lambda_handler, determine_game_id        
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
+      
 
 # Only allow the script to be run on the test database.
 # if os.getenv('DB_NAME') != 'test1':
@@ -18,12 +18,13 @@ from functions.process_trackman.test.image.src.main import connect_to_db, get_cs
 
 
 s3 = boto3.client('s3')
+test_dir = os.path.dirname(os.path.abspath(__file__))
 
 class TestConnectToDB:
     expected_params = {
-        'dbname': 'test1',
-        'user': 'hopkins',
-        'host': 'alpb-db-instance-1.cx8qqqqk2r49.us-east-1.rds.amazonaws.com',
+        'dbname': 'postgres',
+        'user': 'postgres',
+        'host': 'alpb-1-instance-1.cx866cecsebt.us-east-2.rds.amazonaws.com',
         'port': '5432',
     }
 
@@ -35,8 +36,9 @@ class TestConnectToDB:
 
 
 class TestGetCSV:
-    event = open('test_events/unverified_pitching_test.json')
+    event = open(os.path.join(test_dir, './test_events/unverified_pitching_test.json'))
     data = json.load(event)
+    print("Data:", data)
     
     def test_get_csv_returns_file_and_filename(self):
         file, filename = get_csv(self.data, s3)
@@ -106,11 +108,12 @@ class TestDetermineGameIDAndInsertData:
 
 
     def call_determine_game_id(self, file_path):
-        event = open(file_path)
+        event = open(os.path.join(test_dir, file_path))
         data = json.load(event)
         file, file_name = get_csv(data, s3)
         df = pd.read_csv(file)
-        return determine_game_id(file_name, self.conn, df, s3)
+        game = get_game_info(file_name, df, self.conn, s3)
+        return determine_game_id(file_name, self.conn, df, game, s3)
         
 
     def test_determine_playerpos_gameid_unverified_pitching_exists(self):
@@ -216,22 +219,22 @@ class TestDetermineGameIDAndInsertData:
     # TEST INSERTION:
 
     def test_insert_unverified_pitch(self):
-        event = json.load(open('test_events/unverified_pitching_test.json'))
+        event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
         cursor = self.conn.cursor()
         try:
-            lambda_handler(event, None)
+            handler(event, None)
         finally:
             game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
             self.delete_data_by_game_id(cursor, game_id)
 
 
     def test_insert_verified_pitch_unverified_exists(self):
-        unverified_event = json.load(open('test_events/unverified_pitching_test.json'))
-        verified_event = json.load(open('test_events/verified_pitching_test.json'))
+        unverified_event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
+        verified_event = json.load(open(os.path.join(test_dir, 'test_events/verified_pitching_test.json')))
         cursor = self.conn.cursor()
         try:
-            lambda_handler(unverified_event, None)
-            lambda_handler(verified_event, None)
+            handler(unverified_event, None)
+            handler(verified_event, None)
         finally:
             unverified_game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
             verified_game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', True, '2024-06-29', 1)
@@ -240,34 +243,34 @@ class TestDetermineGameIDAndInsertData:
 
 
     def test_insert_unverified_playerpos(self):
-        event = json.load(open('test_events/unverified_player_positioning_test.json'))
+        event = json.load(open(os.path.join(test_dir, 'test_events/unverified_player_positioning_test.json')))
         cursor = self.conn.cursor()
         try:
-            lambda_handler(event, None)
+            handler(event, None)
         finally:
             game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
             self.delete_data_by_game_id(cursor, game_id)
 
 
     def test_insert_unverified_playerpos_pitch_exists(self):
-        pitching_event = json.load(open('test_events/verified_pitching_test.json'))
-        playerpos_event = json.load(open('test_events/unverified_player_positioning_test.json'))
+        pitching_event = json.load(open(os.path.join(test_dir, 'test_events/verified_pitching_test.json')))
+        playerpos_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_player_positioning_test.json')))
         cursor = self.conn.cursor()
         try:
-            lambda_handler(pitching_event, None)
-            lambda_handler(playerpos_event, None)
+            handler(pitching_event, None)
+            handler(playerpos_event, None)
         finally:
             game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', True, '2024-06-29', 1)
             self.delete_data_by_game_id(cursor, game_id)
 
 
     def test_insert_double_headers(self):
-        game1_event = json.load(open('test_events/unverified_pitch_double_header1_test.json'))
-        game2_event = json.load(open('test_events/unverified_pitch_double_header2_test.json'))
+        game1_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_pitch_double_header1_test.json')))
+        game2_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_pitch_double_header2_test.json')))
         cursor = self.conn.cursor()
         try:
-            lambda_handler(game1_event, None)
-            lambda_handler(game2_event, None)
+            handler(game1_event, None)
+            handler(game2_event, None)
         finally:
             game1_id = self.get_game_ids(cursor, 'SMD', 'LAN', 'RegencyFurnitureStadium', False, '2024-06-18', 1)
             game2_id = self.get_game_ids(cursor, 'SMD', 'LAN', 'RegencyFurnitureStadium', False, '2024-06-18', 2)
@@ -279,7 +282,7 @@ class TestGetGameInfo:
     conn = connect_to_db()
     
     def call_get_info(self, file_path):
-        event = open(file_path)
+        event = open(os.path.join(test_dir, file_path))
         data = json.load(event)
         file, file_name = get_csv(data, s3)
         df = pd.read_csv(file)
