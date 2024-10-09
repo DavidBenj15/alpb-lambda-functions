@@ -120,9 +120,9 @@ def handle_pitch_data(conn, df, game_id, game_exists):
     # iterate over each row in the DataFrame to insert pitch data
     for index, row in df.iterrows():
         # Get or insert player data for pitcher, batter, and catcher
-        pitcher_id = get_or_insert_player(row['Pitcher'], row['PitcherThrows'], row['PitcherTeam'], conn)
-        batter_id = get_or_insert_player(row['Batter'], row['BatterSide'], row['BatterTeam'], conn)
-        catcher_id = get_or_insert_player(row['Catcher'], row['CatcherThrows'], row['CatcherTeam'], conn)
+        pitcher_id = get_or_insert_player(row['Pitcher'], row['PitcherThrows'], row['PitcherTeam'], "Pitcher", conn)
+        batter_id = get_or_insert_player(row['Batter'], row['BatterSide'], row['BatterTeam'], "Batter", conn)
+        catcher_id = get_or_insert_player(row['Catcher'], row['CatcherThrows'], row['CatcherTeam'], "Catcher", conn)
         pitcher_set = handle_pitcher_set(row['PitcherSet'])
 
         values = ( 
@@ -181,13 +181,13 @@ def handle_playerpos_data(conn, df, game_id, game_exists):
         # could optimize these queries to only run if trackman-generated player ids in the current row
         # are different than those in the previous row, but speed does not seem to be a high priority
         # for our application.
-        first_base_player_id = get_or_insert_player(row['1B_Name'], None, row['PitcherTeam'], conn)
-        second_base_player_id = get_or_insert_player(row['2B_Name'], None, row['PitcherTeam'], conn)
-        third_base_player_id = get_or_insert_player(row['3B_Name'], None, row['PitcherTeam'], conn)
-        ss_player_id = get_or_insert_player(row['SS_Name'], None, row['PitcherTeam'], conn)
-        lf_player_id = get_or_insert_player(row['LF_Name'], None, row['PitcherTeam'], conn)
-        cf_player_id = get_or_insert_player(row['CF_Name'], None, row['PitcherTeam'], conn)
-        rf_player_id = get_or_insert_player(row['RF_Name'], None, row['PitcherTeam'], conn)
+        first_base_player_id = get_or_insert_player(row['1B_Name'], None, row['PitcherTeam'], "defense", conn)
+        second_base_player_id = get_or_insert_player(row['2B_Name'], None, row['PitcherTeam'], "defense", conn)
+        third_base_player_id = get_or_insert_player(row['3B_Name'], None, row['PitcherTeam'], "defense", conn)
+        ss_player_id = get_or_insert_player(row['SS_Name'], None, row['PitcherTeam'], "defense", conn)
+        lf_player_id = get_or_insert_player(row['LF_Name'], None, row['PitcherTeam'], "defense", conn)
+        cf_player_id = get_or_insert_player(row['CF_Name'], None, row['PitcherTeam'], "defense", conn)
+        rf_player_id = get_or_insert_player(row['RF_Name'], None, row['PitcherTeam'], "defense", conn)
 
         values = (
             row['PitchNo'], row['Date'], row['Time'], row['PitchCall'], row['PlayResult'], row['DetectedShift'], row['1B_PositionAtReleaseX'], 
@@ -265,24 +265,36 @@ def construct_set_clause(columns):
     return set_clause  
 
 
-def get_or_insert_player(player_name, handedness, team_code, conn):
+def get_or_insert_player(player_name, handedness, team_code, player_type, conn):
     """ Get the player ID from the player name, handedness, and team. Insert the player if they do not exist. """
-    if not player_name:
+    if not player_name or (isinstance(player_name, str) and player_name.lower() == "nan"):
         return None # do not insert player if name is null
     
     team_id = get_or_insert_team_id(team_code, conn)
+    
     try:
         cursor = conn.cursor()
         # check if the player already exists
         cursor.execute(
             """
-            SELECT player_id FROM player WHERE player_name = %s AND team_id = %s;
+            SELECT (player_id, player_pitching_handedness, player_batting_handedness)
+            FROM player 
+            WHERE player_name = %s AND team_id = %s;
             """,
             (player_name, team_id)
         )
         result = cursor.fetchone()
         if result:
-            return result[0]
+            player_id = result[0]
+            existing_pitch_hand = result[1]
+            existing_bat_hand = result[2]
+            # player might be a switch hitter or have empty an empty batting/pitching field.
+            # update accordingly:
+            if player_type == "Batter":
+                handle_update_batting_handedness(player_id, handedness, existing_bat_hand, conn)
+            elif player_type == "Pitcher":
+                handle_update_pitching_handedness(player_id, handedness, existing_pitch_hand, conn)
+            return player_id
         else:
             # insert the player if they do not exist
             cursor.execute(
@@ -298,6 +310,43 @@ def get_or_insert_player(player_name, handedness, team_code, conn):
     except Exception as e:
         print(f'Error getting or inserting player id: {e}')
         return None
+
+
+def handle_update_batting_handedness(id, hand, existing_hand, conn):
+    try:
+        cursor = conn.cursor()
+        if isinstance(existing_hand, str) and existing_hand != hand:
+            hand = "Switch"
+        if not existing_hand or (isinstance(existing_hand, str) and (existing_hand.lower() == "nan" or hand == 'Switch')):
+            # batter_handedness DNE; insert it.
+            cursor.execute(
+                """
+                UPDATE player
+                SET player_pitching_handedness = %s
+                WHERE player_id = %s;
+                """,
+                (hand, id)
+            )
+            conn.commit()
+    except Exception as e:
+        print(f'Error handling updating batter handedness: {e}')
+
+
+def handle_update_pitching_handedness(id, hand, existing_hand, conn):
+    try:
+        cursor = conn.cursor()
+        if not existing_hand or (isinstance(existing_hand, str) and (existing_hand.lower() == "nan")):
+            cursor.execute(
+                """
+                UPDATE player
+                SET player_batter_handedness = %s
+                WHERE player_id = %s;
+                """,
+                (hand, id)
+            )
+            conn.commit()
+    except Exception as e:
+        print(f'Error handling updating batter handedness: {e}')
 
 
 def get_or_insert_team_id(team_code, conn):
