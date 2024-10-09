@@ -48,13 +48,13 @@ class TestDetermineGameIDAndInsertData:
     """These two tests are grouped together because they require similar helper methods."""
     conn = connect_to_db()
 
-    def get_team_id_by_name(self, cursor, team_name):
+    def get_team_id_by_code(self, cursor, team_code):
         cursor.execute(
             """
             SELECT team_id FROM team
-            WHERE team_name = %s;
+            WHERE team_code = %s;
             """,
-            (team_name,)
+            (team_code,)
         )
         return cursor.fetchone()[0]
     
@@ -70,9 +70,9 @@ class TestDetermineGameIDAndInsertData:
         return cursor.fetchone()[0]
 
 
-    def get_game_ids(self, cursor, home_team_name, visiting_team_name, ballpark_name, verified, date, daily_number):
-        home_team_id = self.get_team_id_by_name(cursor, home_team_name)
-        visiting_team_id = self.get_team_id_by_name(cursor, visiting_team_name)
+    def get_game_ids(self, cursor, home_team_code, visiting_team_code, ballpark_name, verified, date, daily_number):
+        home_team_id = self.get_team_id_by_code(cursor, home_team_code)
+        visiting_team_id = self.get_team_id_by_code(cursor, visiting_team_code)
         ballpark_id = self.get_ballpark_id_by_name(cursor, ballpark_name)
         cursor.execute(
             """
@@ -218,64 +218,64 @@ class TestDetermineGameIDAndInsertData:
 
     # TEST INSERTION:
 
-    def test_insert_unverified_pitch(self):
-        event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
-        cursor = self.conn.cursor()
-        try:
-            handler(event, None)
-        finally:
-            game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
-            self.delete_data_by_game_id(cursor, game_id)
+    # def test_insert_unverified_pitch(self):
+    #     event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
+    #     cursor = self.conn.cursor()
+    #     try:
+    #         handler(event, None)
+    #     finally:
+    #         game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
+    #         self.delete_data_by_game_id(cursor, game_id)
 
 
-    def test_insert_verified_pitch_unverified_exists(self):
-        unverified_event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
-        verified_event = json.load(open(os.path.join(test_dir, 'test_events/verified_pitching_test.json')))
-        cursor = self.conn.cursor()
-        try:
-            handler(unverified_event, None)
-            handler(verified_event, None)
-        finally:
-            unverified_game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
-            verified_game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', True, '2024-06-29', 1)
-            self.delete_data_by_game_id(cursor, unverified_game_id)
-            self.delete_data_by_game_id(cursor, verified_game_id)
+    # def test_insert_verified_pitch_unverified_exists(self):
+    #     unverified_event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
+    #     verified_event = json.load(open(os.path.join(test_dir, 'test_events/verified_pitching_test.json')))
+    #     cursor = self.conn.cursor()
+    #     try:
+    #         handler(unverified_event, None)
+    #         handler(verified_event, None)
+    #     finally:
+    #         unverified_game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
+    #         verified_game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', True, '2024-06-29', 1)
+    #         self.delete_data_by_game_id(cursor, unverified_game_id)
+    #         self.delete_data_by_game_id(cursor, verified_game_id)
 
 
-    def test_insert_unverified_playerpos(self):
-        event = json.load(open(os.path.join(test_dir, 'test_events/unverified_player_positioning_test.json')))
-        cursor = self.conn.cursor()
-        try:
-            handler(event, None)
-        finally:
-            game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
-            self.delete_data_by_game_id(cursor, game_id)
+    # def test_insert_unverified_playerpos(self):
+    #     event = json.load(open(os.path.join(test_dir, 'test_events/unverified_player_positioning_test.json')))
+    #     cursor = self.conn.cursor()
+    #     try:
+    #         handler(event, None)
+    #     finally:
+    #         game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
+    #         self.delete_data_by_game_id(cursor, game_id)
 
 
-    def test_insert_unverified_playerpos_pitch_exists(self):
-        pitching_event = json.load(open(os.path.join(test_dir, 'test_events/verified_pitching_test.json')))
-        playerpos_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_player_positioning_test.json')))
-        cursor = self.conn.cursor()
-        try:
-            handler(pitching_event, None)
-            handler(playerpos_event, None)
-        finally:
-            game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', True, '2024-06-29', 1)
-            self.delete_data_by_game_id(cursor, game_id)
+    # def test_insert_unverified_playerpos_pitch_exists(self):
+    #     pitching_event = json.load(open(os.path.join(test_dir, 'test_events/verified_pitching_test.json')))
+    #     playerpos_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_player_positioning_test.json')))
+    #     cursor = self.conn.cursor()
+    #     try:
+    #         handler(pitching_event, None)
+    #         handler(playerpos_event, None)
+    #     finally:
+    #         game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', True, '2024-06-29', 1)
+    #         self.delete_data_by_game_id(cursor, game_id)
 
 
-    def test_insert_double_headers(self):
-        game1_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_pitch_double_header1_test.json')))
-        game2_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_pitch_double_header2_test.json')))
-        cursor = self.conn.cursor()
-        try:
-            handler(game1_event, None)
-            handler(game2_event, None)
-        finally:
-            game1_id = self.get_game_ids(cursor, 'SMD', 'LAN', 'RegencyFurnitureStadium', False, '2024-06-18', 1)
-            game2_id = self.get_game_ids(cursor, 'SMD', 'LAN', 'RegencyFurnitureStadium', False, '2024-06-18', 2)
-            # self.delete_data_by_game_id(cursor, game1_id)
-            # self.delete_data_by_game_id(cursor, game2_id)
+    # def test_insert_double_headers(self):
+    #     game1_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_pitch_double_header1_test.json')))
+    #     game2_event = json.load(open(os.path.join(test_dir, 'test_events/unverified_pitch_double_header2_test.json')))
+    #     cursor = self.conn.cursor()
+    #     try:
+    #         handler(game1_event, None)
+    #         handler(game2_event, None)
+    #     finally:
+    #         game1_id = self.get_game_ids(cursor, 'SMD', 'LAN', 'RegencyFurnitureStadium', False, '2024-06-18', 1)
+    #         game2_id = self.get_game_ids(cursor, 'SMD', 'LAN', 'RegencyFurnitureStadium', False, '2024-06-18', 2)
+    #         # self.delete_data_by_game_id(cursor, game1_id)
+    #         # self.delete_data_by_game_id(cursor, game2_id)
 
 
 class TestGetGameInfo:

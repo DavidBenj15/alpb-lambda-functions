@@ -23,8 +23,6 @@ def get_csv(event, s3):
     """Use event object's JSON to return a CSV from the S3 bucket."""
     bucket = event['Records'][0]['s3']['bucket']['name']
     key = event['Records'][0]['s3']['object']['key'] # path to CSV file in S3 bucket
-    print("bucket:", bucket)
-    print("key:", key)
     res = s3.get_object(Bucket=bucket, Key=key)
 
 
@@ -362,7 +360,6 @@ def determine_game_id(file_name, conn, df, game, s3):
 
         cursor.execute(team_id_query, (game['away_team'],))
         visiting_team_id = cursor.fetchone()[0]
-        print("date:", game['date'])
         # query the databse to check if this game already exists.
         cursor.execute(
             """
@@ -509,10 +506,10 @@ def get_player_positioning_teams(file_name, s3):
 
     day_after_year, day_after_month, day_after_day = get_day_after(year, month, day)
 
-    bucket = 'alpb-bucket'
+    bucket = 'trackman-data'
     key_prefixes = [None] * 2
-    key_prefixes[0] = '/'.join(['data/alpb_database/trackman_csv', year, month, day, 'CSV'])
-    key_prefixes[1] = '/'.join(['data/alpb_database/trackman_csv', day_after_year, day_after_month, day_after_day, 'CSV'])
+    key_prefixes[0] = '/'.join([year, month, day, 'CSV'])
+    key_prefixes[1] = '/'.join([day_after_year, day_after_month, day_after_day, 'CSV'])
     file = None
     exception_message = None
 

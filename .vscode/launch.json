@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: pytest specific test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "justMyCode": false,
+            "args": [
+                ".\\functions\\process_trackman\\test\\test-process-trackman.py::TestGetGameInfo::test_unverified_player_positioning_data"
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}
