@@ -362,7 +362,7 @@ def determine_game_id(file_name, conn, df, game, s3):
 
         cursor.execute(team_id_query, (game['away_team'],))
         visiting_team_id = cursor.fetchone()[0]
-
+        print("date:", game['date'])
         # query the databse to check if this game already exists.
         cursor.execute(
             """
@@ -426,7 +426,7 @@ def get_date_from_df(df):
     This function loops over each row until it finds a non-null date.
     """
     for date in df['Date']:
-        if date is not None:
+        if date is not None and (isinstance(date, str) and date.lower() != "nan"):
             return date
     raise ValueError('All values in Date column are null.')
 
