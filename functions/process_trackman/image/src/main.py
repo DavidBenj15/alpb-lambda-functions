@@ -120,9 +120,9 @@ def handle_pitch_data(conn, df, game_id, game_exists):
     # iterate over each row in the DataFrame to insert pitch data
     for index, row in df.iterrows():
         # Get or insert player data for pitcher, batter, and catcher
-        pitcher_id = get_or_insert_player(row['Pitcher'], row['PitcherThrows'], row['PitcherTeam'], "Pitcher", conn)
-        batter_id = get_or_insert_player(row['Batter'], row['BatterSide'], row['BatterTeam'], "Batter", conn)
-        catcher_id = get_or_insert_player(row['Catcher'], row['CatcherThrows'], row['CatcherTeam'], "Catcher", conn)
+        pitcher_id = get_or_insert_player(row['Pitcher'], row['PitcherThrows'], row['PitcherTeam'], "pitcher", conn)
+        batter_id = get_or_insert_player(row['Batter'], row['BatterSide'], row['BatterTeam'], "batter", conn)
+        catcher_id = get_or_insert_player(row['Catcher'], row['CatcherThrows'], row['CatcherTeam'], "catcher", conn)
         pitcher_set = handle_pitcher_set(row['PitcherSet'])
 
         values = ( 
@@ -267,17 +267,28 @@ def construct_set_clause(columns):
 
 def get_or_insert_player(player_name, handedness, team_code, player_type, conn):
     """ Get the player ID from the player name, handedness, and team. Insert the player if they do not exist. """
+
+    # Edge case: player_name is null (not usefull to us)
     if not player_name or (isinstance(player_name, str) and player_name.lower() == "nan"):
-        return None # do not insert player if name is null
+        return None
+
+    # Edge case: plyaer_type is not a string
+    if not isinstance(player_type, str):
+        raise Exception("paramter player_type is not of type string")
+    
+    # Edge case: handedness is string "Undefined"
+    if handedness == "Undefined":
+        handedness = None
     
     team_id = get_or_insert_team_id(team_code, conn)
+    player_type = player_type.lower()
     
     try:
         cursor = conn.cursor()
         # check if the player already exists
         cursor.execute(
             """
-            SELECT (player_id, player_pitching_handedness, player_batting_handedness)
+            SELECT player_id, player_pitching_handedness, player_batting_handedness
             FROM player 
             WHERE player_name = %s AND team_id = %s;
             """,
@@ -290,20 +301,37 @@ def get_or_insert_player(player_name, handedness, team_code, player_type, conn):
             existing_bat_hand = result[2]
             # player might be a switch hitter or have empty an empty batting/pitching field.
             # update accordingly:
-            if player_type == "Batter":
+            if player_type == "batter":
                 handle_update_batting_handedness(player_id, handedness, existing_bat_hand, conn)
-            elif player_type == "Pitcher":
+            elif player_type == "pitcher":
                 handle_update_pitching_handedness(player_id, handedness, existing_pitch_hand, conn)
             return player_id
         else:
             # insert the player if they do not exist
-            cursor.execute(
-                """
-                INSERT INTO player (player_name, player_pitching_handedness, player_batting_handedness, team_id) 
-                VALUES (%s, %s, %s, %s) RETURNING player_id;
-                """,
-                (player_name, handedness if handedness in ['L', 'R'] else None, handedness if handedness in ['L', 'R'] else None, team_id)
-            )
+            if player_type == "batter":
+                cursor.execute(
+                    """
+                    INSERT INTO player (player_name, player_batting_handedness, team_id) 
+                    VALUES (%s, %s, %s) RETURNING player_id;
+                    """,
+                    (player_name, handedness, team_id)
+                )
+            elif player_type == "pitcher":
+                cursor.execute(
+                    """
+                    INSERT INTO player (player_name, player_pitching_handedness, team_id) 
+                    VALUES (%s, %s, %s) RETURNING player_id;
+                    """,
+                    (player_name, handedness, team_id)
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO player (player_name, team_id)
+                    VALUES (%s, %s) RETURNING player_id;
+                    """,
+                    (player_name, team_id)
+                )
             conn.commit()
             result = cursor.fetchone()
             return result[0]
@@ -322,7 +350,7 @@ def handle_update_batting_handedness(id, hand, existing_hand, conn):
             cursor.execute(
                 """
                 UPDATE player
-                SET player_pitching_handedness = %s
+                SET player_batting_handedness = %s
                 WHERE player_id = %s;
                 """,
                 (hand, id)
@@ -339,7 +367,7 @@ def handle_update_pitching_handedness(id, hand, existing_hand, conn):
             cursor.execute(
                 """
                 UPDATE player
-                SET player_batter_handedness = %s
+                SET player_pitching_handedness = %s
                 WHERE player_id = %s;
                 """,
                 (hand, id)

@@ -1,5 +1,5 @@
 # To run test from terminal: py -m pytest the/test/location.py -s
-from functions.process_trackman.image.src.main import connect_to_db, get_csv, get_game_info, handler, determine_game_id  
+from functions.process_trackman.image.src.main import connect_to_db, get_csv, get_game_info, handler, determine_game_id, get_or_insert_player  
 import sys
 import os
 import pytest
@@ -218,14 +218,14 @@ class TestDetermineGameIDAndInsertData:
 
     # TEST INSERTION:
 
-    # def test_insert_unverified_pitch(self):
-    #     event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
-    #     cursor = self.conn.cursor()
-    #     try:
-    #         handler(event, None)
-    #     finally:
-    #         game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
-    #         self.delete_data_by_game_id(cursor, game_id)
+    def test_insert_unverified_pitch(self):
+        event = json.load(open(os.path.join(test_dir,'test_events/unverified_pitching_test.json')))
+        cursor = self.conn.cursor()
+        try:
+            handler(event, None)
+        finally:
+            game_id = self.get_game_ids(cursor, 'LAN', 'LI', 'ClipperMagazine', False, '2024-06-29', 1)
+            self.delete_data_by_game_id(cursor, game_id)
 
 
     # def test_insert_verified_pitch_unverified_exists(self):
@@ -330,3 +330,179 @@ class TestGetGameInfo:
         for key, expected_value in expected_info.items():
             assert expected_value == actual_info[key]
 
+class TestGetOrInsertPlayer:
+    conn = connect_to_db()
+
+    def delete_player_by_id(self, cursor, id):
+        if not id:
+            return
+
+        cursor.execute(
+            """
+            DELETE FROM player
+            WHERE player_id = %s;
+            """,
+            (id,)
+        )
+        self.conn.commit()
+    
+    def test_insert_batter(self):
+        cursor = self.conn.cursor()
+        player_id = None
+        try:
+            player_id = get_or_insert_player(
+                "Test Batter",
+                "Right",
+                "LAN",
+                "batter",
+                self.conn,
+            )
+            cursor.execute(
+                """
+                SELECT player_name, player_batting_handedness FROM player
+                WHERE player_id = %s
+                """,
+                (player_id,)
+            )
+            name, bat_hand = cursor.fetchone()
+            print(name, bat_hand)
+            assert (name == "Test Batter" and bat_hand == "Right")
+        finally:
+            self.delete_player_by_id(cursor, player_id)
+
+
+    def test_insert_pitcher(self):
+        cursor = self.conn.cursor()
+        player_id = None
+        try:
+            player_id = get_or_insert_player(
+                "Test Pitcher",
+                "Left",
+                "LAN",
+                "pitcher",
+                self.conn,
+            )
+            cursor.execute(
+                """
+                SELECT player_name, player_pitching_handedness FROM player
+                WHERE player_id = %s
+                """,
+                (player_id,)
+            )
+            name, pitch_hand = cursor.fetchone()
+            print(name, pitch_hand)
+            assert (name == "Test Pitcher" and pitch_hand == "Left")
+        finally:
+            self.delete_player_by_id(cursor, player_id)
+
+
+    def test_pitch_and_bat_hands_exist(self):
+        cursor = self.conn.cursor()
+        player_id1 = None
+        player_id2 = None
+        try:
+            player_id1 = get_or_insert_player(
+                "Test pitch and bat hands exist",
+                "Left",
+                "LAN",
+                "pitcher",
+                self.conn,
+            )
+            player_id2 = get_or_insert_player(
+                "Test pitch and bat hands exist",
+                "Right",
+                "LAN",
+                "batter",
+                self.conn,
+            )
+            assert(player_id1 == player_id2)
+            cursor.execute(
+                """
+                SELECT player_name, player_pitching_handedness, player_batting_handedness FROM player
+                WHERE player_id = %s
+                """,
+                (player_id1,)
+            )
+            name, pitch_hand, bat_hand = cursor.fetchone()
+            print(name, pitch_hand)
+            assert (name == "Test pitch and bat hands exist" and pitch_hand == "Left" and bat_hand == "Right")
+        finally:
+            self.delete_player_by_id(cursor, player_id1)
+            self.delete_player_by_id(cursor, player_id2)
+
+
+    def test_update_to_switch_hitter(self):
+        cursor = self.conn.cursor()
+        player_id1 = None
+        player_id2 = None
+        try:
+            player_id1 = get_or_insert_player(
+                "Test update to switch hitter",
+                "Left",
+                "LAN",
+                "batter",
+                self.conn,
+            )
+            player_id2 = get_or_insert_player(
+                "Test update to switch hitter",
+                "Right",
+                "LAN",
+                "batter",
+                self.conn,
+            )
+            assert(player_id1 == player_id2)
+            cursor.execute(
+                """
+                SELECT player_name, player_batting_handedness FROM player
+                WHERE player_id = %s
+                """,
+                (player_id1,)
+            )
+            name, bat_hand = cursor.fetchone()
+            print(name, bat_hand)
+            assert (name == "Test update to switch hitter" and bat_hand == "Switch")
+        finally:
+            self.delete_player_by_id(cursor, player_id1)
+            self.delete_player_by_id(cursor, player_id2)
+
+
+    def test_update_switch_hitter_pitch_hand(self):
+        cursor = self.conn.cursor()
+        player_id1 = None
+        player_id2 = None
+        try:
+            player_id1 = get_or_insert_player(
+                "Test update switch hitter hand",
+                "Left",
+                "LAN",
+                "batter",
+                self.conn,
+            )
+            player_id2 = get_or_insert_player(
+                "Test update switch hitter hand",
+                "Right",
+                "LAN",
+                "batter",
+                self.conn,
+            )
+            player_id3 = get_or_insert_player(
+                "Test update switch hitter hand",
+                "Right",
+                "LAN",
+                "Pitcher",
+                self.conn,
+            )
+            assert(player_id1 == player_id2 == player_id3)
+            cursor.execute(
+                """
+                SELECT player_name, player_batting_handedness, player_pitching_handedness FROM player
+                WHERE player_id = %s
+                """,
+                (player_id1,)
+            )
+            name, bat_hand, pitch_hand = cursor.fetchone()
+            print(name, bat_hand)
+            assert (name == "Test update switch hitter hand" and bat_hand == "Switch" and pitch_hand == "Right")
+        finally:
+            self.delete_player_by_id(cursor, player_id1)
+            self.delete_player_by_id(cursor, player_id2)

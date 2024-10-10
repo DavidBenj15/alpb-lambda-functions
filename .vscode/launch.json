@@ -8,7 +8,7 @@
             "module": "pytest",
             "justMyCode": false,
             "args": [
-                ".\\functions\\process_trackman\\test\\test-process-trackman.py::TestGetGameInfo::test_unverified_player_positioning_data"
+                ".\\functions\\process_trackman\\test\\test-process-trackman.py::TestGetOrInsertPlayer::test_pitch_and_bat_hands_exist"
             ],
             "console": "integratedTerminal"
         }
