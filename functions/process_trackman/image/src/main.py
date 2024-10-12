@@ -123,7 +123,7 @@ def handle_pitch_data(conn, df, game_id, game_exists):
         pitcher_id = get_or_insert_player(row['Pitcher'], row['PitcherThrows'], row['PitcherTeam'], "pitcher", conn)
         batter_id = get_or_insert_player(row['Batter'], row['BatterSide'], row['BatterTeam'], "batter", conn)
         catcher_id = get_or_insert_player(row['Catcher'], row['CatcherThrows'], row['CatcherTeam'], "catcher", conn)
-        pitcher_set = handle_pitcher_set(row['PitcherSet'])
+        pitcher_set = check_undefined_or_nan(row['PitcherSet'])
 
         values = ( 
             row['HitTrajectoryZc2'], pitcher_id, batter_id, game_id, row['Date'], row['Time'], row['PAofInning'], 
@@ -162,8 +162,8 @@ def handle_pitch_data(conn, df, game_id, game_exists):
             insert_data_game_dne(columns, values, placeholders_str, conn)
 
 
-def handle_pitcher_set(val):
-    if val == "Undefined":
+def check_undefined_or_nan(val):
+    if isinstance(val, str) and (val == "Undefined" or val.lower() == "nan"):
         return None
     return val
 
@@ -188,9 +188,10 @@ def handle_playerpos_data(conn, df, game_id, game_exists):
         lf_player_id = get_or_insert_player(row['LF_Name'], None, row['PitcherTeam'], "defense", conn)
         cf_player_id = get_or_insert_player(row['CF_Name'], None, row['PitcherTeam'], "defense", conn)
         rf_player_id = get_or_insert_player(row['RF_Name'], None, row['PitcherTeam'], "defense", conn)
+        play_result = check_undefined_or_nan(row['PlayResult'])
 
         values = (
-            row['PitchNo'], row['Date'], row['Time'], row['PitchCall'], row['PlayResult'], row['DetectedShift'], row['1B_PositionAtReleaseX'], 
+            row['PitchNo'], row['Date'], row['Time'], row['PitchCall'], play_result, row['DetectedShift'], row['1B_PositionAtReleaseX'], 
             row['1B_PositionAtReleaseZ'], row['2B_PositionAtReleaseX'], row['2B_PositionAtReleaseZ'], row['3B_PositionAtReleaseX'],
             row['3B_PositionAtReleaseZ'], row['SS_PositionAtReleaseX'], row['SS_PositionAtReleaseZ'], row['LF_PositionAtReleaseX'],
             row['LF_PositionAtReleaseZ'], row['CF_PositionAtReleaseX'], row['CF_PositionAtReleaseZ'], row['RF_PositionAtReleaseX'],
