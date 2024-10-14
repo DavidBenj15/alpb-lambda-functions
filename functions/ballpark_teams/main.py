@@ -109,7 +109,7 @@ def link_teams_and_ballparks(file, conn):
 if __name__ == '__main__':
     conn = connect_to_db()
     s3 = boto3.client('s3')
-    res = s3.get_object(Bucket='alpb-json',
+    res = s3.get_object(Bucket='alpb-jsondata',
                         Key='ballparks/ballpark_data.json')
     string = res['Body'].read().decode('utf-8')
     json_file = json.loads(string)

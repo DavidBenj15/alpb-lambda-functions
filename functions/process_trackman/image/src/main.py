@@ -538,8 +538,8 @@ def get_game_info(file_name, df, conn, s3):
     else:
         game['file_type'] = 'pitch data'
         # only pitch data CSVs contain fields about home team and away team (for whatever reason)
-        game['home_team'] = df['HomeTeam'][0]
-        game['away_team'] = df['AwayTeam'][0]
+        game['home_team'] = df['HomeTeam'][0][:3] # Some teams may have excess chars, like YOR_REV2 => only get first 3
+        game['away_team'] = df['AwayTeam'][0][:3]
 
     game['date'] = get_date_from_df(df)
 
@@ -614,7 +614,7 @@ def get_player_positioning_teams(file_name, s3):
     csv = StringIO(file_content) # Convert file from str. to csv
     df = pd.read_csv(csv)
 
-    return (df['HomeTeam'][0], df['AwayTeam'][0])
+    return (df['HomeTeam'][0][:3], df['AwayTeam'][0][:3])
 
 
 def get_day_after(year, month, day):
