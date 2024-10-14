@@ -584,7 +584,7 @@ def get_player_positioning_teams(file_name, s3):
 
     day_after_year, day_after_month, day_after_day = get_day_after(year, month, day)
 
-    bucket = 'trackman-data'
+    bucket = os.environ['BUCKET']
     key_prefixes = [None] * 2
     key_prefixes[0] = '/'.join([year, month, day, 'CSV'])
     key_prefixes[1] = '/'.join([day_after_year, day_after_month, day_after_day, 'CSV'])
