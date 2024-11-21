@@ -1,7 +1,3 @@
-# TODO: when inserting data, the program will throw an exception with the message "integer out of range,"
-# but only (as far as I've noticed) in rows with lots of missing data. I'm not sure if this is worth debugging,
-# as the data is missing in the first place (and thus the row likely will not be useful if inserted).
-
 import os
 import boto3
 import psycopg2
