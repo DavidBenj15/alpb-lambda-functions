@@ -8,3 +8,7 @@ Ensure Docker engine is running on your machine, and <code>cd</code> into your f
 2. Next, run <code>$ cdk deploy</code>. If everything was successful, your image should be deployed to Lambda!
 
 For more detailed instructions, check out [this video](https://www.youtube.com/watch?v=wbsbXfkv47A&t=431s).
+
+## Where to Find Main Content for Data Pipeline
+Our script to load trackman files can be found at `functions/process_trackman/image/src/main.py`.\
+Associated tests can be found at `functions/process_trackman/test/test-process-trackman.py`.
