@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "aws-cdk-lib": "^2.177.0",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.7",
     "pg": "^8.13.1"

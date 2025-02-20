@@ -1,3 +1,4 @@
+// from ../: Compress-Archive -Path validateToken\* -DestinationPath validateTokenEndpoint.zip -Force
 import pkg from 'pg';
 const { Pool } = pkg;
 import crypto from 'crypto'
@@ -7,6 +8,10 @@ dotenv.config();
 
 const TOKEN_SECRET = process.env.TOKEN_SECRET;
 const ALGORITHM = 'aes-256-cbc';
+
+const headers = {'Content-Type':'application/json',
+                    'Access-Control-Allow-Origin':'*',
+                    'Access-Control-Allow-Methods':'POST,PATCH,OPTIONS'}
 
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -30,11 +35,11 @@ function decryptToken(encryptedToken) {
 export const handler = async (event) => {
     try {
         console.log("event: ", event);
-        // console.log("body: ", event.body);
-        // console.log("body: ", body)
+
         if (!event.alpbToken || !event.widgetId) {
             return {
                 statusCode: 400,
+                headers,
                 body: {
                     success: false,
                     message: "Missing required field(s) in request body"
@@ -58,6 +63,7 @@ export const handler = async (event) => {
         if (sessionRes.rowCount === 0 || sessionRes.rows[0]["sess"]["user"]["user_id"] !== userId || publicWidgetId !== reqPublicWidgetId) {
             return {
                 statusCode: 403,
+                headers,
                 body: {
                     success: false,
                     message: "Unauthorized"
@@ -67,6 +73,7 @@ export const handler = async (event) => {
 
         return {
             statusCode: 200,
+            headers,
             body: {
                 success: true,
                 message: "Token validated successfully"
@@ -76,6 +83,7 @@ export const handler = async (event) => {
     } catch (error) {
         return {
             statusCode: 500,
+            headers,
             body: {
                 success: false,
                 message: "Could not validate token: " + error.message
