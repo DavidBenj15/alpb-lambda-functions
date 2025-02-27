@@ -1,3 +1,4 @@
+import json
 import os
 import boto3
 from datetime import date, timedelta
@@ -27,9 +28,10 @@ def ensure_s3_directory(bucket_name, directory_path, s3_client):
         print(subdirectories)
         cur_path = ''
         for i, sub in enumerate(subdirectories):
-            if not cur_path:
-                cur_path = '/'
-            cur_path += sub
+            if cur_path:
+                cur_path += f"/{sub}"
+            else:
+                cur_path = sub
 
             dir_path = f'{cur_path}/' # trailing slash to indicate directory
 
@@ -39,7 +41,16 @@ def ensure_s3_directory(bucket_name, directory_path, s3_client):
                     Prefix=dir_path,
                     MaxKeys=1
                 )
-                print(f'dir_path: {dir_path}', response)
+                dir_exists = response['KeyCount'] > 0
+                if dir_exists:
+                    print(f"Directory {dir_path} already exists in {bucket_name}.")
+                else:
+                    print(f"Creating new directory {dir_path} in {bucket_name}...")
+                    s3_client.put_object(
+                        Bucket=bucket_name,
+                        Key=dir_path
+                    )
+                    print(f"Successfully created new directory {dir_path} in {bucket_name}.")
             except ClientError as e:
                 print(f"Error checking/creating directory {dir_path}: {e}")
                 raise
