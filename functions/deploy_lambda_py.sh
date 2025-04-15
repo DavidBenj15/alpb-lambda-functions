@@ -6,6 +6,39 @@ set -e
 FUNCTIONS_DIR="functions"
 PSYCOPG2_DIR="$(cd ../psycopg2-3.11 && pwd)"  # Path to your psycopg2 files
 
+# Function to display usage instructions
+usage() {
+    echo "Usage: $0 -f <aws-lambda-function-name>"
+    echo "Options:"
+    echo "  -f, --function-name   Specify the AWS Lambda function name to deploy to"
+    echo "  -h, --help            Show this help message"
+    exit 1
+}
+
+# Parse command line arguments
+AWS_LAMBDA_FUNCTION_NAME=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--function-name)
+            AWS_LAMBDA_FUNCTION_NAME="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            ;;
+    esac
+done
+
+# Check if AWS Lambda function name is provided
+if [ -z "$AWS_LAMBDA_FUNCTION_NAME" ]; then
+    echo "Error: AWS Lambda function name is required."
+    usage
+fi
+
 # Ensure script is run inside the functions directory
 if [[ $(basename "$PWD") != "$FUNCTIONS_DIR" ]]; then
     echo "Error: Please run this script from within the '$FUNCTIONS_DIR' directory."
@@ -65,12 +98,6 @@ ZIP_FILE="deployment_package.zip"
 rm -rf "$BUILD_DIR" "$ZIP_FILE"
 mkdir "$BUILD_DIR"
 
-# pip install pydantic-core \
-#     --target "$BUILD_DIR" \
-#     --platform manylinux2014_x86_64 \
-#     --only-binary=:all: \
-#     --python-version 3.11
-
 # Install dependencies into build directory
 pip install -r requirements.txt --python-version 3.11 --target "$BUILD_DIR" --platform manylinux2014_x86_64 --only-binary=:all:
 
@@ -83,7 +110,7 @@ if [ -d "$PSYCOPG2_DIR" ]; then
     cp -r "$PSYCOPG2_DIR/"* "$BUILD_DIR/"
 else
     echo "Error: psycopg2 directory not found at $PSYCOPG2_DIR"
-    exit 1  # Optional: make this a hard error instead of just a warning
+    exit 1
 fi
 
 # Package everything into a zip file
@@ -92,7 +119,7 @@ zip -r9 "../$ZIP_FILE" .
 cd ..
 
 # Deploy to AWS Lambda
-echo "Deploying '$FUNCTION_NAME' to AWS Lambda..."
-aws lambda update-function-code --function-name "$FUNCTION_NAME" --zip-file fileb://"$ZIP_FILE"
+echo "Deploying to AWS Lambda function: $AWS_LAMBDA_FUNCTION_NAME"
+aws lambda update-function-code --function-name "$AWS_LAMBDA_FUNCTION_NAME" --zip-file fileb://"$ZIP_FILE"
 
 echo "Deployment complete!"

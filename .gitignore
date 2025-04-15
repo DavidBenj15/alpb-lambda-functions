@@ -164,3 +164,4 @@ cython_debug/
 # Lambda deployment packages
 lambda_package/
 deployment/
+node_modules/
