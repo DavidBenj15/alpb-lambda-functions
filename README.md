@@ -2,6 +2,11 @@
 This repository contains the AWS Lambda functions used in for ALPB Analytics Platorm, their associated tests, and some additional Python scripts used in the data pipeline.
 
 ## Developer Instructions
+### Getting Started
+Clone this repository and <code>cd</code> into the root directory. 
+
+Copy <code>.env.example</code> to <code>.env</code> and fill in the real values.
+
 ### (Optional) Creating a virtual environment for your Python lambda function:
 1. <code>cd</code> into your function's directory.
 2. Execute `$ python -m venv <my-virtual-env>`
@@ -9,7 +14,7 @@ This repository contains the AWS Lambda functions used in for ALPB Analytics Pla
 `source my-virtual-env/bin/activate`\
 On Windows: `.\my-virtual-env\scripts\activate`
 ### Deploying a Lambda function to AWS:
-#### I. via bash script (for Python scripts)
+#### I. Via bash script (for Python scripts requiring the Psycopg2 module)
 Ensure your lambda function and its dependencies are organized like so:
 ```
 functions/
@@ -34,6 +39,15 @@ Ensure Docker engine is running on your machine, and <code>cd</code> into your f
 
 For more detailed instructions, check out [this video](https://www.youtube.com/watch?v=wbsbXfkv47A&t=431s).
 
-## Where to Find Main Content for Data Pipeline
-Our script to load trackman files can be found at `functions/process_trackman/image/src/main.py`.\
-Associated tests can be found at `functions/process_trackman/test/test-process-trackman.py`.
+### III. via AWS CLI (for most functions)
+For functions with fewer packages that don't require the Psycopg2 module, the AWS CLI is the most efficient method for deployment. 
+
+1. <code>cd</code> into your function directory.
+-   Ensure your packages are present in the directory, either via Python virtual environment for by running <code>npm install</code>.
+2. Run <code>zip -r \<my-function>.zip .</code> to zup up your function.
+3. Run <code>aws lambda update-function-code --function-name \<lambda-function-name> --zip-file fileb://\<function-name>.zip</code>.
+
+Your lambda function should be updated now!
+
+
+
